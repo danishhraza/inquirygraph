@@ -1,0 +1,20 @@
+[
+  {
+    "id": "cloud-001",
+    "query": "Compare vector RAG and GraphRAG for enterprise question answering.",
+    "must_include": ["vector", "graph", "entity", "retrieval"],
+    "must_cite": []
+  },
+  {
+    "id": "cloud-002",
+    "query": "What are the operational tradeoffs of LangGraph versus CrewAI for production agents?",
+    "must_include": ["langgraph", "crewai"],
+    "must_cite": []
+  },
+  {
+    "id": "cloud-003",
+    "query": "Compare Databricks, Snowflake, and BigQuery for migrating from an on-premise data warehouse.",
+    "must_include": ["snowflake", "databricks", "bigquery", "migration"],
+    "must_cite": []
+  }
+]

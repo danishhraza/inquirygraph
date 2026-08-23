@@ -1,0 +1,51 @@
+[project]
+name = "inquirygraph"
+version = "0.1.0"
+description = "AI Research & Investigation Agent with LangGraph, GraphRAG, and hybrid retrieval"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "langgraph>=0.2.0",
+    "langgraph-checkpoint-sqlite>=2.0.0",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "qdrant-client>=1.12.0",
+    "neo4j>=5.25.0",
+    "httpx>=0.27.0",
+    "ddgs>=9.0.0",
+    "fastembed>=0.4.0",
+    "structlog>=24.0.0",
+    "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.9",
+    "rank-bm25>=0.2.2",
+    "pypdf>=4.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+]
+mcp = [
+    "mcp>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/inquirygraph"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

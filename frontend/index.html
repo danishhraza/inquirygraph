@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InquiryGraph — AI Research Agent</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #141b2e;
+      --panel-2: #1c2540;
+      --accent: #4f8cff;
+      --accent-2: #7c5cff;
+      --text: #e6ebf5;
+      --muted: #93a0bd;
+      --border: #26304d;
+      --ok: #3ddc97;
+      --warn: #ffb454;
+      --err: #ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 70% -10%, #1a2350 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 40px 24px 80px; }
+    h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.5px; }
+    h1 .dot { color: var(--accent); }
+    .subtitle { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      margin-bottom: 22px;
+    }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    textarea {
+      width: 100%;
+      min-height: 110px;
+      resize: vertical;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 15px;
+      font-family: inherit;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    button {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 22px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .06s ease, opacity .2s;
+    }
+    button:hover { opacity: .92; }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .badge.ok { color: var(--ok); border-color: var(--ok); }
+    .badge.running { color: var(--warn); border-color: var(--warn); }
+    .status { font-size: 14px; }
+    .mono { font-family: "Cascadia Code", Consolas, monospace; font-size: 13px; color: var(--muted); }
+    .report section { margin-bottom: 18px; }
+    .report h3 { margin: 0 0 6px; font-size: 17px; color: var(--accent-2); }
+    .report p { margin: 0 0 8px; line-height: 1.6; }
+    .summary {
+      border-left: 3px solid var(--accent);
+      padding: 4px 0 4px 16px;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+    .facts { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+    .contradictions { color: var(--warn); }
+    .open-q { color: var(--accent); }
+    .cite { font-size: 12px; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 8px; margin-top: 8px; }
+    .hidden { display: none; }
+    .spinner {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      display: inline-block;
+      animation: spin .8s linear infinite;
+      vertical-align: -2px; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Sources */
+    .sources { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 14px; }
+    .sources h4 { margin: 0 0 10px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .source-link {
+      display: block;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      text-decoration: none;
+      transition: border-color .15s;
+    }
+    .source-link:hover { border-color: var(--accent); }
+    .source-link .num { color: var(--accent); font-weight: 600; margin-right: 8px; }
+    .source-link .host { color: var(--muted); font-size: 12px; float: right; }
+    .source-link .excerpt { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .sect-cite a { color: var(--accent); text-decoration: none; margin-right: 10px; font-size: 12px; }
+    .sect-cite a:hover { text-decoration: underline; }
+
+    /* History */
+    .history-item {
+      display: flex; gap: 10px; align-items: center;
+      padding: 10px 12px; margin-bottom: 8px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer;
+    }
+    .history-item:hover { border-color: var(--accent); }
+    .history-item .q { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-item .when { font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Inquiry<span class="dot">Graph</span></h1>
+    <p class="subtitle">AI Research &amp; Investigation Agent — LangGraph · GraphRAG · Hybrid Retrieval</p>
+
+    <div class="card">
+      <label for="query">Research question</label>
+      <textarea id="query" placeholder="e.g. Compare Databricks, Snowflake, and BigQuery for migrating from an on-premise data warehouse."></textarea>
+      <div class="row" style="margin-top:14px;">
+        <button id="run">Run investigation</button>
+        <label class="status" id="status"></label>
+      </div>
+    </div>
+
+    <div class="card hidden" id="result">
+      <div class="facts" id="facts"></div>
+      <div class="report" id="report"></div>
+      <div class="sources hidden" id="sources">
+        <h4>Sources</h4>
+        <div id="sources-list"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4 style="margin:0 0 12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-size:14px;">History</h4>
+      <div id="history"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = "";
+
+    async function run() {
+      const query = document.getElementById("query").value.trim();
+      if (query.length < 10) { alert("Please enter a research question (min 10 chars)."); return; }
+
+      const btn = document.getElementById("run");
+      const status = document.getElementById("status");
+      const result = document.getElementById("result");
+      btn.disabled = true;
+      status.innerHTML = '<span class="spinner"></span> Researching…';
+      result.classList.add("hidden");
+
+      try {
+        const res = await fetch(API + "/investigations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || "Request failed");
+        }
+        const data = await res.json();
+        render(data);
+        if (data.status === "queued" || data.status === "running") {
+          await poll(data.investigation_id);
+        } else {
+          status.innerHTML = "";
+          btn.disabled = false;
+        }
+        loadHistory();
+      } catch (e) {
+        status.innerHTML = '<span class="badge" style="color:var(--err);border-color:var(--err)">' + e.message + "</span>";
+      } finally {
+        if (!document.getElementById("status").dataset.polling) btn.disabled = false;
+      }
+    }
+
+    async function poll(id) {
+      const status = document.getElementById("status");
+      status.dataset.polling = "true";
+      const timer = setInterval(async () => {
+        try {
+          const res = await fetch(API + "/investigations/" + id);
+          const data = await res.json();
+          render(data);
+          status.innerHTML = data.status === "completed" ? "" : '<span class="spinner"></span> ' + data.status;
+          if (data.status === "completed" || data.status === "failed") {
+            clearInterval(timer);
+            delete status.dataset.polling;
+            document.getElementById("run").disabled = false;
+            loadHistory();
+          }
+        } catch (e) {
+          clearInterval(timer);
+          delete status.dataset.polling;
+          status.textContent = "Polling failed: " + e.message;
+          document.getElementById("run").disabled = false;
+        }
+      }, 3000);
+    }
+
+    function hostOf(url) {
+      try { return new URL(url).hostname; } catch { return ""; }
+    }
+
+    function buildSources(data) {
+      // Collect every citation we know about (retrieved evidence + per-section).
+      const map = new Map();
+      let n = 0;
+      const add = (c) => {
+        if (!c || !c.source_url) return;
+        if (!map.has(c.source_url)) { map.set(c.source_url, { ...c, num: ++n }); }
+      };
+      (data.citations || []).forEach(add);
+      (data.report?.sections || []).forEach(s => (s.citations || []).forEach(add));
+      return Array.from(map.values());
+    }
+
+    function render(data) {
+      const facts = document.getElementById("facts");
+      facts.innerHTML =
+        '<span class="badge ' + (data.status === "completed" ? "ok" : "running") + '">' + esc(data.status || "unknown") + '</span>' +
+        '<span class="badge">' + data.iterations + " iterations</span>" +
+        '<span class="badge">' + data.llm_call_count + " LLM calls</span>" +
+        (data.errors && data.errors.length ? '<span class="badge" style="color:var(--err);border-color:var(--err)">' + data.errors.length + " errors</span>" : "") +
+        (data.contradictions && data.contradictions.length ? '<span class="badge" style="color:var(--warn);border-color:var(--warn)">' + data.contradictions.length + " contradictions</span>" : "");
+
+      const report = document.getElementById("report");
+      const sourcesBox = document.getElementById("sources");
+      const sourcesList = document.getElementById("sources-list");
+
+      if (!data.report) {
+        report.innerHTML = "<p class='mono'>No report generated.</p>";
+        sourcesBox.classList.add("hidden");
+      } else {
+        let html = "";
+        if (data.report.executive_summary) {
+          html += '<div class="summary">' + esc(data.report.executive_summary) + "</div>";
+        }
+        (data.report.sections || []).forEach(s => {
+          html += "<section><h3>" + esc(s.title) + "</h3><p>" + esc(s.content) + "</p>";
+          if (s.citations && s.citations.length) {
+            const seen = new Set();
+            const uniqueCites = s.citations.filter(c => {
+              if (!c.source_url || seen.has(c.source_url)) return false;
+              seen.add(c.source_url);
+              return true;
+            });
+            html += '<div class="sect-cite">' + uniqueCites.map(c =>
+              '<a href="' + esc(c.source_url) + '" target="_blank" rel="noopener">[' + esc(c.source_title) + '] ↗</a>'
+            ).join("") + "</div>";
+          }
+          html += "</section>";
+        });
+        if (data.report.contradictions && data.report.contradictions.length) {
+          html += '<div class="contradictions"><strong>⚠ Contradictions:</strong><ul>' +
+            data.report.contradictions.map(c => "<li>" + esc(c) + "</li>").join("") + "</ul></div>";
+        }
+        if (data.report.open_questions && data.report.open_questions.length) {
+          html += '<div class="open-q"><strong>Open questions:</strong><ul>' +
+            data.report.open_questions.map(c => "<li>" + esc(c) + "</li>").join("") + "</ul></div>";
+        }
+        if (data.contradictions && data.contradictions.length) {
+          html += '<div class="contradictions"><strong>Detected claim conflicts:</strong><ul>' +
+            data.contradictions.map(c => "<li>" + esc(c.claim_a + " ↔ " + c.claim_b) + ": " + esc(c.explanation) + "</li>").join("") +
+            "</ul></div>";
+        }
+        report.innerHTML = html;
+
+        const sources = buildSources(data);
+        if (sources.length) {
+          sourcesList.innerHTML = sources.map(s =>
+            '<a class="source-link" href="' + esc(s.source_url) + '" target="_blank" rel="noopener">' +
+            '<span class="num">[' + s.num + ']</span>' + esc(s.source_title) +
+            '<span class="host">' + esc(hostOf(s.source_url)) + ' ↗</span>' +
+            (s.excerpt ? '<span class="excerpt">' + esc(s.excerpt.slice(0, 180)) + '…</span>' : '') +
+            '</a>'
+          ).join("");
+          sourcesBox.classList.remove("hidden");
+        } else {
+          sourcesBox.classList.add("hidden");
+        }
+      }
+      document.getElementById("result").classList.remove("hidden");
+    }
+
+    async function loadHistory() {
+      try {
+        const res = await fetch(API + "/investigations");
+        const items = await res.json();
+        const box = document.getElementById("history");
+        if (!items.length) { box.innerHTML = '<p class="mono">No past investigations yet.</p>'; return; }
+        box.innerHTML = items.map(it =>
+          '<div class="history-item" data-id="' + esc(it.id) + '">' +
+          '<span class="badge ' + (it.status === "completed" ? "ok" : "running") + '">' + esc(it.status) + '</span>' +
+          '<span class="q" title="' + esc(it.query) + '">' + esc(it.query) + '</span>' +
+          '<span class="when">' + esc((it.created_at || "").replace("T", " ").slice(0, 16)) + '</span>' +
+          '</div>'
+        ).join("");
+        box.querySelectorAll(".history-item").forEach(el => {
+          el.addEventListener("click", async () => {
+            const id = el.dataset.id;
+            const status = document.getElementById("status");
+            status.innerHTML = '<span class="spinner"></span> Loading…';
+            const res = await fetch(API + "/investigations/" + id);
+            const data = await res.json();
+            render(data);
+            status.innerHTML = "";
+          });
+        });
+      } catch (e) {
+        document.getElementById("history").innerHTML = '<p class="mono">History unavailable.</p>';
+      }
+    }
+
+    function esc(s) {
+      const d = document.createElement("div");
+      d.textContent = s == null ? "" : String(s);
+      return d.innerHTML;
+    }
+
+    document.getElementById("run").addEventListener("click", run);
+    document.getElementById("query").addEventListener("keydown", e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run();
+    });
+    loadHistory();
+  </script>
+</body>
+</html>
