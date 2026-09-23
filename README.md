@@ -18,7 +18,7 @@ AI Research & Investigation Agent built with **LangGraph**, **GraphRAG** (Neo4j)
 - Sync or async job processing (`PROCESSING_MODE`)
 - Minimal web frontend at `/`
 - MCP tool server (`scripts/run_mcp.py`)
-- Reproducible benchmark under `eval/`
+- Offline, reproducible retrieval benchmark (recall@k, MRR, config hashing) under `eval/`
 
 ## Quick start
 
@@ -104,7 +104,36 @@ python scripts/run_mcp.py
 | `PROCESSING_MODE` | `sync` | `sync` or `async` |
 | `TAVILY_API_KEY` | — | Optional better search |
 
+## Evaluation
+
+`eval/retrieval_benchmark.py` scores the retrieval strategies against a hand-labelled
+golden set (34 queries over a fixed 25-document corpus, each query tagged
+`keyword`, `paraphrase` or `mixed`). It needs no API keys, web access or databases:
+embeddings run locally, and BM25 and hybrid fusion call the production functions.
+
+```bash
+python -m eval.retrieval_benchmark --strategies bm25 vector hybrid hybrid_rerank
+python -m eval.retrieval_benchmark --baseline eval/results/baseline.json  # exits 1 on regression
+```
+
+Current baseline (`eval/results/baseline.json`, run `5f4ee3b0139b`):
+
+| Strategy | Recall@1 | Recall@3 | Recall@5 | MRR | MRR on paraphrase queries |
+|----------|---------:|---------:|---------:|----:|--------------------------:|
+| BM25 only | 0.733 | 0.902 | 0.946 | 0.895 | 0.780 |
+| Vector only | 0.723 | 0.863 | 0.926 | 0.890 | 0.804 |
+| Hybrid (0.4 BM25 + 0.6 vector) | 0.821 | 0.946 | 0.976 | 0.966 | 0.917 |
+| Hybrid + cross-encoder rerank | 0.851 | 0.936 | 0.976 | 0.985 | 0.964 |
+
+Every run records a hash of everything that can change its scores (corpus, golden set,
+models, top-k, chunking, fusion weight). The baseline check only compares runs with the
+same hash, so a score change always means a code change, not different inputs.
+
+Graph strategies are not covered yet because they need an LLM to build the graph.
+`eval/run_benchmark.py` is a separate end-to-end smoke test: it runs full investigations
+(needs API keys and web access) and checks that reports mention the expected themes.
+
 ## Not built yet
 
 - Production async message queue (Redis/Celery), authentication, and rate limits
-- Larger curated benchmark corpus with gold citations
+- Larger, independently labelled benchmark corpus; graph-strategy and answer-quality evaluation
