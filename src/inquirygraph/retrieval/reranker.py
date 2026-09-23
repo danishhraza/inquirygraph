@@ -4,13 +4,15 @@ from functools import lru_cache
 
 from inquirygraph.retrieval.vector_store import EvidenceChunk
 
+RERANK_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
+
 
 @lru_cache
 def _get_reranker():
     try:
         from fastembed.rerank.cross_encoder import TextCrossEncoder
 
-        return TextCrossEncoder(model_name="Xenova/ms-marco-MiniLM-L-6-v2")
+        return TextCrossEncoder(model_name=RERANK_MODEL)
     except (ImportError, RuntimeError, ValueError):
         return None
 

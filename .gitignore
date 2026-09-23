@@ -19,3 +19,7 @@ server.log
 server.err
 server.pid
 uploads/
+
+# Benchmark runs; only the committed baseline is tracked
+eval/results/*
+!eval/results/baseline.json
