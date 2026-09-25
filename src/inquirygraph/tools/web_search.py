@@ -54,11 +54,22 @@ def _duckduckgo_search(query: str, limit: int) -> list[SearchResult]:
 
 
 def _tavily_search(query: str, limit: int) -> list[SearchResult]:
-    response = httpx.post(
-        "https://api.tavily.com/search",
-        json={"api_key": settings.tavily_api_key, "query": query, "max_results": limit},
-        timeout=30.0,
-    )
+    # Retry once on transient failures (DNS blips, dropped connections, 429/5xx);
+    # a second failure propagates so the caller can record it against the task.
+    for attempt in range(2):
+        try:
+            response = httpx.post(
+                "https://api.tavily.com/search",
+                json={"api_key": settings.tavily_api_key, "query": query, "max_results": limit},
+                timeout=30.0,
+            )
+            if response.status_code == 429 or response.status_code >= 500:
+                response.raise_for_status()
+            break
+        except (httpx.TransportError, httpx.HTTPStatusError):
+            if attempt == 1:
+                raise
+            time.sleep(2)
     response.raise_for_status()
     data = response.json()
     return [

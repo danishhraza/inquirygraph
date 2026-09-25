@@ -10,7 +10,9 @@ Wire this up in an MCP client (e.g. Claude Desktop/Cursor) with:
     args: ["<repo>/scripts/run_mcp.py"]
 """
 
+import importlib
 import os
+import threading
 from pathlib import Path
 
 
@@ -23,7 +25,11 @@ def main() -> None:
     except ImportError as exc:  # pragma: no cover
         raise SystemExit("MCP SDK not installed. Run: pip install -e \".[mcp]\"") from exc
 
-    build_server().run()
+    server = build_server()
+    # The research pipeline is slow to import; load it while the client handshakes
+    # so the first tool call doesn't pay for it.
+    threading.Thread(target=importlib.import_module, args=("inquirygraph.agent.jobs",), daemon=True).start()
+    server.run()
 
 
 if __name__ == "__main__":

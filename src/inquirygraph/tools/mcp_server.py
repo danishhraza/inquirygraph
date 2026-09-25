@@ -17,18 +17,19 @@ Requires the `mcp` extra: pip install -e ".[mcp]"
 """
 
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import anyio
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from inquirygraph.agent.graph import load_state
-from inquirygraph.agent.jobs import JobStatus, runner
 from inquirygraph.api.schemas import InvestigationReport
 from inquirygraph.config.settings import settings
 from inquirygraph.observability.logging import log
 from inquirygraph.tools.mcp_adapter import TOOL_HANDLERS
+
+if TYPE_CHECKING:
+    from inquirygraph.agent.jobs import JobRunner, JobStatus
 
 MIN_QUERY_LENGTH = 10  # same rule as POST /investigations
 # Nodes on the straight path through the graph; each extra research loop adds three.
@@ -58,7 +59,7 @@ def build_server() -> MCPServer:
     @mcp.tool()
     def get_investigation(investigation_id: str) -> dict[str, Any]:
         """Get the status and progress of an investigation, and its report once completed."""
-        job = runner.get(investigation_id)
+        job = _runner().get(investigation_id)
         if job is not None:
             return _job_view(job)
         # Not started by this process: finished earlier via the API or a previous server run.
@@ -142,7 +143,22 @@ def report_to_markdown(report: InvestigationReport | dict) -> str:
     return "\n".join(lines)
 
 
-def _job_view(job: JobStatus) -> dict[str, Any]:
+def load_state(investigation_id: str) -> dict | None:
+    # The agent package pulls in the LLM and vector-store stacks (~20s to import),
+    # so it loads on first use; importing it up front made clients time out
+    # before the MCP handshake.
+    from inquirygraph.agent.graph import load_state as load_graph_state
+
+    return load_graph_state(investigation_id)
+
+
+def _runner() -> "JobRunner":
+    from inquirygraph.agent.jobs import runner
+
+    return runner
+
+
+def _job_view(job: "JobStatus") -> dict[str, Any]:
     if job.state == "completed" and job.result is not None:
         return summarize(job.investigation_id, job.result)
     view = {"investigation_id": job.investigation_id, "status": job.state}
@@ -153,12 +169,12 @@ def _job_view(job: JobStatus) -> dict[str, Any]:
     return view
 
 
-def _submit(query: str) -> JobStatus:
+def _submit(query: str) -> "JobStatus":
     _validate(query)
     investigation_id = str(uuid.uuid4())
     _record_request(investigation_id, query)
     log.info("mcp_investigation_started", investigation_id=investigation_id)
-    return runner.submit(investigation_id, query)
+    return _runner().submit(investigation_id, query)
 
 
 def _validate(query: str) -> None:
