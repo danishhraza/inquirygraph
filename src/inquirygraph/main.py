@@ -3,7 +3,7 @@ import uuid
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from inquirygraph.agent.graph import build_graph, run_investigation
+from inquirygraph.agent.graph import load_state, run_investigation
 from inquirygraph.agent.jobs import runner
 from inquirygraph.api.schemas import (
     Citation,
@@ -22,20 +22,6 @@ from inquirygraph.persistence import (
 )
 from inquirygraph.ingest.documents import SUPPORTED_SUFFIXES, index_document
 from inquirygraph.observability.logging import log
-from langgraph.checkpoint.sqlite import SqliteSaver
-
-
-def _load_state(investigation_id: str) -> dict | None:
-    import sqlite3
-
-    conn = sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
-    snapshot = build_graph(checkpointer).get_state(
-        {"configurable": {"thread_id": investigation_id}}
-    )
-    if snapshot is None or not snapshot.values:
-        return None
-    return snapshot.values
 
 
 class InvestigationRequest(BaseModel):
@@ -92,7 +78,7 @@ def get_investigation(investigation_id: str):
     if job is not None and job.state in ("queued", "running"):
         # LangGraph checkpoints contain the latest durable metrics even while
         # the background worker is still running.
-        state = _load_state(investigation_id) or {}
+        state = load_state(investigation_id) or {}
         return InvestigationResponse(
             investigation_id=investigation_id,
             status=job.state,
@@ -133,7 +119,7 @@ def get_investigation(investigation_id: str):
         )
 
     # Fallback to the LangGraph checkpoint.
-    state = _load_state(investigation_id)
+    state = load_state(investigation_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Investigation not found")
     return InvestigationResponse(

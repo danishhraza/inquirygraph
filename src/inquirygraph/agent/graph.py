@@ -1,3 +1,6 @@
+import sqlite3
+from collections.abc import Callable
+
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 
@@ -53,12 +56,26 @@ def build_graph(checkpointer: SqliteSaver):
     return graph.compile(checkpointer=checkpointer)
 
 
-def run_investigation(investigation_id: str, user_query: str) -> InvestigationState:
-    import sqlite3
-
+def _compile_app():
     conn = sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
-    app = build_graph(checkpointer)
+    return build_graph(SqliteSaver(conn))
+
+
+def load_state(investigation_id: str) -> dict | None:
+    """Latest checkpointed state of an investigation, or None if it never ran."""
+    snapshot = _compile_app().get_state({"configurable": {"thread_id": investigation_id}})
+    if snapshot is None or not snapshot.values:
+        return None
+    return snapshot.values
+
+
+def run_investigation(
+    investigation_id: str,
+    user_query: str,
+    on_node: Callable[[str], None] | None = None,
+) -> InvestigationState:
+    """Run the graph to completion. `on_node` is called with each node name as it finishes."""
+    app = _compile_app()
 
     initial_state: InvestigationState = {
         "investigation_id": investigation_id,
@@ -81,4 +98,12 @@ def run_investigation(investigation_id: str, user_query: str) -> InvestigationSt
     }
 
     config = {"configurable": {"thread_id": investigation_id}}
-    return app.invoke(initial_state, config=config)
+    if on_node is None:
+        return app.invoke(initial_state, config=config)
+
+    # Same execution as invoke(), but yields after every node so callers can report progress.
+    for update in app.stream(initial_state, config=config, stream_mode="updates"):
+        for node in update:
+            if not node.startswith("__"):
+                on_node(node)
+    return app.get_state(config).values

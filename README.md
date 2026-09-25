@@ -17,7 +17,7 @@ AI Research & Investigation Agent built with **LangGraph**, **GraphRAG** (Neo4j)
 - Investigation lookup via `GET /investigations/{id}`
 - Sync or async job processing (`PROCESSING_MODE`)
 - Minimal web frontend at `/`
-- MCP tool server (`scripts/run_mcp.py`)
+- MCP server that runs full investigations from Claude Desktop, Claude Code or Cursor (`scripts/run_mcp.py`)
 - Offline, reproducible retrieval benchmark (recall@k, MRR, config hashing) under `eval/`
 
 ## Quick start
@@ -82,16 +82,53 @@ verify_citations        (checks report claims against citations)
 | Knowledge Graph | Neo4j | Entities, claims, relationships |
 | API | FastAPI | HTTP interface |
 | Frontend | Static HTML/JS | Minimal demo UI |
-| Tools | MCP (optional) | Expose tools to MCP clients |
+| Tools | MCP (optional) | Run investigations from any MCP client |
 
-## MCP tool server
+## MCP server
 
-Expose `web_search` and `fetch_url` to any MCP client (Cursor, Claude Desktop):
+Run InquiryGraph from any MCP client (Claude Desktop, Claude Code, Cursor). The
+client gets the whole research pipeline as tools, not just web search:
+
+| Tool | What it does |
+|------|--------------|
+| `start_investigation(query)` | Starts an investigation in the background and returns its id at once |
+| `get_investigation(investigation_id)` | Status and current graph step while running; the cited Markdown report when done |
+| `run_investigation(query)` | Runs an investigation and waits for the report, sending a progress notification per graph step |
+| `web_search(query, max_results)` | Raw web search |
+| `fetch_url(url)` | Readable text of a web page |
+
+The report is also available as the resource `investigation://{id}/report`.
+Investigations take a few minutes, longer than many clients wait on one tool
+call, so clients should prefer `start_investigation` and poll. Both paths use the
+same background job runner as the REST API, so investigations started over MCP
+also appear in the API and web UI.
+
+Setup (Docker services and `.env` as in Quick start):
 
 ```bash
 pip install -e ".[mcp]"
-python scripts/run_mcp.py
 ```
+
+Claude Code:
+
+```bash
+claude mcp add inquirygraph -- "<repo>/.venv/Scripts/python.exe" "<repo>/scripts/run_mcp.py"
+```
+
+Claude Desktop (`claude_desktop_config.json`) or Cursor (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "inquirygraph": {
+      "command": "<repo>/.venv/Scripts/python.exe",
+      "args": ["<repo>/scripts/run_mcp.py"]
+    }
+  }
+}
+```
+
+The server speaks MCP over stdio, so all logging goes to stderr.
 
 ## Configuration
 
