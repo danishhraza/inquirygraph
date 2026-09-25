@@ -4,6 +4,11 @@ from langchain_openai import ChatOpenAI
 
 from inquirygraph.config.settings import settings
 
+# OpenRouter's shared provider pools rate-limit (429) often; without retries one
+# throttled call fails a multi-minute investigation. The SDK backs off
+# exponentially and honours Retry-After.
+MAX_RETRIES = 3
+
 
 @lru_cache
 def get_main_llm() -> ChatOpenAI:
@@ -14,7 +19,7 @@ def get_main_llm() -> ChatOpenAI:
         base_url=settings.openrouter_base_url,
         temperature=0.2,
         timeout=90,
-        max_retries=0,
+        max_retries=MAX_RETRIES,
     )
 
 
@@ -27,5 +32,5 @@ def get_fast_llm() -> ChatOpenAI:
         base_url=settings.openrouter_base_url,
         temperature=0.0,
         timeout=30,
-        max_retries=0,
+        max_retries=MAX_RETRIES,
     )
