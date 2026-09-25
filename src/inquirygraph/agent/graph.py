@@ -84,6 +84,7 @@ def run_investigation(
         "research_plan": None,
         "pending_tasks": [],
         "completed_task_ids": [],
+        "indexed_urls": [],
         "retrieved_chunk_ids": [],
         "citations": [],
         "iteration": 0,

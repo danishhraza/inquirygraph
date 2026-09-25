@@ -56,7 +56,9 @@ small startup"**
 ### 4. Gather + index — `gather_and_index` (the loop body)
 For **each** task (per iteration):
 1. **Search** the web (`web_search`) → up to `MAX_WEB_RESULTS` (5) hits.
-2. **Fetch** the top URL (`MAX_SOURCES_PER_TASK=1`, `MAX_TOTAL_SOURCES=1` → 1 page/task).
+   - A failed search (after one retry) is recorded in `errors` and skips that task only.
+2. **Fetch** up to `MAX_SOURCES_PER_TASK` (2) URLs not already indexed by an earlier
+   loop; stops once the investigation has `MAX_TOTAL_SOURCES` (8) sources.
    - If fetch fails, it falls back to the search snippet.
 3. **Chunk** the text (`chunk_text`).
 4. **Embed** chunks with `bge-small-en-v1.5` → upsert vectors into **Qdrant** (`upsert_chunks`).
@@ -118,7 +120,7 @@ question
 |-----|---------|--------|
 | `MAX_RESEARCH_ITERATIONS` | 2 | How many times it can loop back for more research |
 | `MAX_TASKS_PER_PLAN` | 4 | Tasks from the initial plan |
-| `MAX_SOURCES_PER_TASK` / `MAX_TOTAL_SOURCES` | 1 / 1 | Pages fetched per task / total |
+| `MAX_SOURCES_PER_TASK` / `MAX_TOTAL_SOURCES` | 2 / 8 | New pages fetched per task / per investigation (across loops) |
 | `RETRIEVAL_STRATEGY` | hybrid | `vector` / `hybrid` / `graph` / `graph_plus_vector` |
 | `ENABLE_RERANKING` | false | Turn on the cross-encoder reranker |
 | `PROCESSING_MODE` | async | `async` (background) or `sync` (blocking) |

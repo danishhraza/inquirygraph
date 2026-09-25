@@ -36,8 +36,8 @@ class Settings(BaseSettings):
 
     max_research_iterations: int = 2
     max_web_results: int = 5
-    max_sources_per_task: int = 1
-    max_total_sources: int = 1
+    max_sources_per_task: int = 2
+    max_total_sources: int = 8
     max_tasks_per_plan: int = 4
     enable_reranking: bool = False
     retrieval_strategy: RetrievalStrategy = RetrievalStrategy.HYBRID

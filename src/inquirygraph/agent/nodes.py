@@ -140,18 +140,31 @@ def gather_and_index(state: InvestigationState) -> dict:
     llm_calls = 0
     completed: list[str] = []
     errors: list[str] = []
-    sources_processed = 0
+    # Sources indexed by earlier research loops count towards the cap and are not
+    # fetched again: follow-up queries tend to surface the same top result.
+    seen_urls = set(state.get("indexed_urls") or [])
+    new_urls: list[str] = []
 
     for task in tasks:
+        if len(seen_urls) >= settings.max_total_sources:
+            break
         log.info("research_task", task_id=task.id, query=task.search_query)
-        results = web_search(task.search_query)
+        try:
+            results = web_search(task.search_query)
+        except Exception as exc:
+            # One failed search should cost one task, not the investigation.
+            errors.append(f"Search failed for task {task.id}: {exc}")
+            continue
         log.info("search_complete", task_id=task.id, result_count=len(results))
 
-        # Keep each investigation bounded: two sources per task is enough for
-        # an MVP and avoids a single slow search dominating the whole run.
-        for hit in results[: settings.max_sources_per_task]:
-            if sources_processed >= settings.max_total_sources:
+        # Keep each investigation bounded: a couple of new sources per task avoids
+        # a single slow search dominating the whole run.
+        task_sources = 0
+        for hit in results:
+            if task_sources >= settings.max_sources_per_task or len(seen_urls) >= settings.max_total_sources:
                 break
+            if hit.url in seen_urls:
+                continue
             log.info("fetch_started", task_id=task.id, url=hit.url)
             fetched = fetch_url(hit.url, hit.title)
             log.info("fetch_complete", task_id=task.id, url=hit.url, fetched=bool(fetched))
@@ -182,7 +195,9 @@ def gather_and_index(state: InvestigationState) -> dict:
             )
             # Count the source as soon as its evidence is indexed. Extraction
             # may fail, but the source cap must still be respected.
-            sources_processed += 1
+            task_sources += 1
+            seen_urls.add(hit.url)
+            new_urls.append(hit.url)
             log.info("embedding_complete", task_id=task.id, url=source_url, chunk_count=len(chunks))
 
             try:
@@ -205,6 +220,7 @@ def gather_and_index(state: InvestigationState) -> dict:
     graph.close()
     return {
         "completed_task_ids": completed,
+        "indexed_urls": new_urls,
         "pending_tasks": [],
         "llm_call_count": state.get("llm_call_count", 0) + llm_calls,
         "errors": errors,

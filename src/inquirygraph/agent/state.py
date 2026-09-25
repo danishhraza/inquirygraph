@@ -20,9 +20,13 @@ class InvestigationState(TypedDict):
     research_plan: ResearchPlan | None
     pending_tasks: list[ResearchTask]
     completed_task_ids: Annotated[list[str], operator.add]
+    indexed_urls: Annotated[list[str], operator.add]  # sources already embedded, across research loops
 
-    retrieved_chunk_ids: Annotated[list[str], operator.add]
-    citations: Annotated[list[Citation], operator.add]
+    # Replaced, not appended: each retrieval pass ranks every chunk indexed so far,
+    # so the latest pass supersedes earlier ones. Appending repeated the first
+    # pass's hits and pushed later rounds' sources past the synthesis cutoff.
+    retrieved_chunk_ids: list[str]
+    citations: list[Citation]
 
     iteration: int
     max_iterations: int
