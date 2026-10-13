@@ -4,6 +4,7 @@ from typing import Annotated, TypedDict
 from inquirygraph.api.schemas import (
     Citation,
     Contradiction,
+    Evidence,
     CoverageDecision,
     InvestigationReport,
     QueryUnderstanding,
@@ -27,6 +28,9 @@ class InvestigationState(TypedDict):
     # pass's hits and pushed later rounds' sources past the synthesis cutoff.
     retrieved_chunk_ids: list[str]
     citations: list[Citation]
+    # Full text of each citation, same order, for the LLM nodes. Citations keep only
+    # a short display excerpt, which is too little for the model to reason over.
+    evidence: list[Evidence]
 
     iteration: int
     max_iterations: int

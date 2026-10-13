@@ -87,6 +87,7 @@ def run_investigation(
         "indexed_urls": [],
         "retrieved_chunk_ids": [],
         "citations": [],
+        "evidence": [],
         "iteration": 0,
         "max_iterations": settings.max_research_iterations,
         "needs_more_research": False,

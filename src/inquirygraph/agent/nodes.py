@@ -9,6 +9,7 @@ from inquirygraph.api.schemas import (
     Contradiction,
     ContradictionList,
     CoverageDecision,
+    Evidence,
     InvestigationReport,
     QueryUnderstanding,
     ResearchPlan,
@@ -229,6 +230,11 @@ def gather_and_index(state: InvestigationState) -> dict:
 
 # ── Node 4: Retrieve evidence (vector / hybrid / graph) ────────────────────────
 
+# Length of the citation snippet shown in the report, UI and API. Display only:
+# the LLM nodes read the full text from state["evidence"].
+DISPLAY_EXCERPT_CHARS = 400
+
+
 def retrieve_evidence(state: InvestigationState) -> dict:
     understanding = state["query_understanding"]
     assert understanding is not None
@@ -243,23 +249,14 @@ def retrieve_evidence(state: InvestigationState) -> dict:
     finally:
         retriever.close()
 
-    citations: list[Citation] = []
-    for hit in vector_hits:
-        citations.append(
-            Citation(
-                source_title=hit.source_title,
-                source_url=hit.source_url,
-                excerpt=hit.text[:400],
-            )
-        )
-    for claim in graph_hits:
-        citations.append(
-            Citation(
-                source_title="Knowledge graph claim",
-                source_url=claim.source_url,
-                excerpt=claim.text[:400],
-            )
-        )
+    # Citations and evidence stay index-aligned: [i] in a prompt names citation i.
+    items = [(hit.source_title, hit.source_url, hit.text) for hit in vector_hits]
+    items += [("Knowledge graph claim", claim.source_url, claim.text) for claim in graph_hits]
+    citations = [
+        Citation(source_title=title, source_url=url, excerpt=text[:DISPLAY_EXCERPT_CHARS])
+        for title, url, text in items
+    ]
+    evidence = [Evidence(source_title=title, source_url=url, text=text) for title, url, text in items]
 
     log.info(
         "retrieve_evidence",
@@ -269,7 +266,25 @@ def retrieve_evidence(state: InvestigationState) -> dict:
     return {
         "retrieved_chunk_ids": [h.chunk_id for h in vector_hits],
         "citations": citations,
+        "evidence": evidence,
     }
+
+
+def _within_budget(evidence: list[Evidence], max_chars: int | None = None) -> list[Evidence]:
+    """Best-ranked prefix of `evidence` whose total text fits the character budget.
+
+    Drops whole lowest-ranked items rather than trimming each one, so every item
+    the model sees is complete. The top item is always kept.
+    """
+    limit = settings.max_evidence_chars if max_chars is None else max_chars
+    kept: list[Evidence] = []
+    total = 0
+    for item in evidence:
+        total += len(item.text)
+        if kept and total > limit:
+            break
+        kept.append(item)
+    return kept
 
 
 # ── Node 5: Decide if more research is needed (loop) ──────────────────────────
@@ -284,7 +299,7 @@ COVERAGE_PROMPT = ChatPromptTemplate.from_messages(
         (
             "human",
             "Question: {query}\nDimensions: {dimensions}\n"
-            "Evidence excerpts:\n{evidence}\nIteration: {iteration}/{max_iterations}",
+            "Evidence:\n{evidence}\nIteration: {iteration}/{max_iterations}",
         ),
     ]
 )
@@ -294,7 +309,8 @@ def check_coverage(state: InvestigationState) -> dict:
     understanding = state["query_understanding"]
     assert understanding is not None
 
-    evidence_text = "\n---\n".join(c.excerpt for c in state.get("citations", [])[:12])
+    evidence = _within_budget(state.get("evidence", [])[:12])
+    evidence_text = "\n---\n".join(item.text for item in evidence)
     if not evidence_text.strip():
         decision = CoverageDecision(
             needs_more_research=True,
@@ -372,9 +388,9 @@ def synthesize_report(state: InvestigationState) -> dict:
     )
 
     evidence_blocks = []
-    for i, citation in enumerate(state.get("citations", [])[:20], start=1):
+    for i, item in enumerate(_within_budget(state.get("evidence", [])[:20]), start=1):
         evidence_blocks.append(
-            f"[{i}] {citation.source_title} ({citation.source_url})\n{citation.excerpt}"
+            f"[{i}] {item.source_title} ({item.source_url})\n{item.text}"
         )
     evidence = "\n\n".join(evidence_blocks) or "No evidence available."
 
@@ -483,21 +499,21 @@ def detect_contradictions(state: InvestigationState) -> dict:
 
 
 VERIFY_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", "Check whether each citation excerpt supports the report. Return one result per citation."),
+    ("system", "Check whether each citation's text supports the report. Return one result per citation."),
     ("human", "Report:\n{report}\n\nCitations:\n{citations}"),
 ])
 
 
 def verify_citations(state: InvestigationState) -> dict:
     report = state.get("final_report")
-    citations = state.get("citations", [])
-    log.info("verify_citations_start", has_report=report is not None, citations=len(citations))
-    if not report or not citations:
+    evidence = _within_budget(state.get("evidence", []))
+    log.info("verify_citations_start", has_report=report is not None, citations=len(evidence))
+    if not report or not evidence:
         return {"citation_verification": []}
     llm = get_fast_llm().with_structured_output(CitationVerificationResult)
     result = (VERIFY_PROMPT | llm).invoke({
         "report": report.model_dump_json(),
-        "citations": "\n".join(f"[{i}] {c.excerpt}" for i, c in enumerate(citations)),
+        "citations": "\n".join(f"[{i}] {item.text}" for i, item in enumerate(evidence)),
     })
     return {
         "citation_verification": [item.model_dump() for item in result.results],

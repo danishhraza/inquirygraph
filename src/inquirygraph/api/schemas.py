@@ -36,7 +36,16 @@ class ExtractionResult(BaseModel):
 class Citation(BaseModel):
     source_title: str
     source_url: str
-    excerpt: str
+    excerpt: str  # short display snippet for the report, UI and API; not model input
+
+
+class Evidence(BaseModel):
+    """Full retrieved text the LLM nodes reason over. Internal to the agent state:
+    never returned by the API or stored with the report, which carry `Citation`."""
+
+    source_title: str
+    source_url: str
+    text: str
 
 
 class ReportSection(BaseModel):

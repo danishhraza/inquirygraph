@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     max_tasks_per_plan: int = 4
     enable_reranking: bool = False
     retrieval_strategy: RetrievalStrategy = RetrievalStrategy.HYBRID
+    # Total characters of retrieved evidence sent to one LLM prompt (~6k tokens).
+    # Past it, whole lowest-ranked items are dropped; kept items are never cut short.
+    # A safety net: today's limits (top_k=8, 800-char chunks, <=20 items) stay well
+    # under it, so it only matters if those grow or graph claims run long.
+    max_evidence_chars: int = 24000
 
     api_host: str = "0.0.0.0"
     api_port: int = 8000

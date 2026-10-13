@@ -81,7 +81,10 @@ question
 - `Retriever` runs the strategy in `RETRIEVAL_STRATEGY` (default `HYBRID`):
   vector search in **Qdrant** + BM25 lexical fuse over all chunks for the query.
   (Graph retrieval only kicks in for `GRAPH` / `GRAPH_PLUS_VECTOR` modes.)
-- Builds `Citation` objects (title + url + excerpt). These feed the report.
+- Builds two index-aligned lists: `Citation` objects (title + url + a 400-char
+  display excerpt) for the report, UI and API, and `Evidence` objects holding the
+  full chunk/claim text. The LLM nodes (coverage, synthesis, verification) read
+  `Evidence`, capped by `MAX_EVIDENCE_CHARS` (whole lowest-ranked items dropped).
 
 ### 6. Coverage check — `check_coverage` (LLM: **deepseek-chat**)  ← loop decision
 - Given the evidence, the LLM decides: enough for a cited report, or are there gaps?
@@ -103,7 +106,7 @@ question
 - This is what the UI renders.
 
 ### 9. Verify citations — `verify_citations` (LLM: **qwen3-30b**)
-- Checks each citation excerpt actually supports the report.
+- Checks each citation's full evidence text actually supports the report.
 
 ### 10. Persist + respond
 - The finished result is written to **Postgres** (`update_result`) with the full
