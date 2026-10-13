@@ -9,6 +9,7 @@ from inquirygraph.api.schemas import (
     Contradiction,
     ContradictionList,
     CoverageDecision,
+    Evidence,
     InvestigationReport,
     QueryUnderstanding,
     ResearchPlan,
@@ -229,6 +230,11 @@ def gather_and_index(state: InvestigationState) -> dict:
 
 # ── Node 4: Retrieve evidence (vector / hybrid / graph) ────────────────────────
 
+# Length of the citation snippet shown in the report, UI and API. Display only:
+# the LLM nodes read the full text from state["evidence"].
+DISPLAY_EXCERPT_CHARS = 400
+
+
 def retrieve_evidence(state: InvestigationState) -> dict:
     understanding = state["query_understanding"]
     assert understanding is not None
@@ -243,23 +249,14 @@ def retrieve_evidence(state: InvestigationState) -> dict:
     finally:
         retriever.close()
 
-    citations: list[Citation] = []
-    for hit in vector_hits:
-        citations.append(
-            Citation(
-                source_title=hit.source_title,
-                source_url=hit.source_url,
-                excerpt=hit.text[:400],
-            )
-        )
-    for claim in graph_hits:
-        citations.append(
-            Citation(
-                source_title="Knowledge graph claim",
-                source_url=claim.source_url,
-                excerpt=claim.text[:400],
-            )
-        )
+    # Citations and evidence stay index-aligned: [i] in a prompt names citation i.
+    items = [(hit.source_title, hit.source_url, hit.text) for hit in vector_hits]
+    items += [("Knowledge graph claim", claim.source_url, claim.text) for claim in graph_hits]
+    citations = [
+        Citation(source_title=title, source_url=url, excerpt=text[:DISPLAY_EXCERPT_CHARS])
+        for title, url, text in items
+    ]
+    evidence = [Evidence(source_title=title, source_url=url, text=text) for title, url, text in items]
 
     log.info(
         "retrieve_evidence",
@@ -269,7 +266,9 @@ def retrieve_evidence(state: InvestigationState) -> dict:
     return {
         "retrieved_chunk_ids": [h.chunk_id for h in vector_hits],
         "citations": citations,
+        "evidence": evidence,
     }
+
 
 
 # ── Node 5: Decide if more research is needed (loop) ──────────────────────────
